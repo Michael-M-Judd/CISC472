@@ -268,7 +268,7 @@ class michaelTest(ScriptedLoadableModuleTest):
 
     N = 10
     scale = 100
-    sigma = 5.0
+    Sigma = 5.0
     # Creating normal and random distributions
     fromNormCoordinates = numpy.random.rand(N, 3) # An array of random numbers
     noise = numpy.random.normal(0.0, Sigma, N*3)
