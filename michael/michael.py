@@ -147,6 +147,36 @@ class michaelLogic(ScriptedLoadableModuleLogic):
   https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
   """
 
+
+  def averageTransformedDistance(self, pointsA, pointsB, aToBMatrix):
+    average = 0.0
+    numbersSoFar = 0
+    N = pointsA.GetNumberOfPoints()
+
+    for i in range(N):
+        numbersSoFar = numbersSoFar + 1
+        a = pointsA.GetPoint(i)
+        pointA_Reference = numpy.array(a)
+        pointA_Reference = numpy.append(pointA_Reference, 1)
+        pointA_Ras = aToBMatrix.MultiplyFloatPoint(pointA_Reference)
+        b = pointsB.GetPoint(i)
+        pointB_Ras = numpy.array(b)
+        pointB_Ras = numpy.append(pointB_Ras, 1)
+        distance = numpy.linalg.norm(pointA_Ras - pointB_Ras)
+        average = average + (distance - average) / numbersSoFar
+
+    return average
+
+
+  def rigidRegistration(self, alphaPoints, betaPoints, alphatToBetaMatrix):
+
+    landmarkTransform = vtk.vtkLandmarkTransform()
+    landmarkTransform.SetSourceLandmarks(alphaPoints)
+    landmarkTransform.SetTargetLandmarks(betaPoints)
+    landmarkTransform.SetModeToRigidBody()
+    landmarkTransform.Update()
+    landmarkTransform.GetMatrix(alphatToBetaMatrix)
+      
   def hasImageData(self,volumeNode):
     """This is an example logic method that
     returns true if the passed in volume
@@ -234,7 +264,49 @@ class michaelLogic(ScriptedLoadableModuleLogic):
 
     return True
 
+  def generatePoints(self, numPoints, Scale, Sigma):
 
+    rasFids = slicer.util.getNode('RasPoints')
+
+    if rasFids == None:
+      rasFids = slicer.vtkMRMLMarkupsFiducialNode()
+      rasFids.SetName('RasPoints')
+      slicer.mrmlScene.AddNode(rasFids)
+
+    rasFids.RemoveAllMarkups()
+    refFids = slicer.util.getNode('ReferencePoints')
+
+    if refFids == None:
+      refFids = slicer.vtkMRMLMarkupsFiducialNode()
+      refFids.SetName('ReferencePoints')
+      slicer.mrmlScene.AddNode(refFids)
+      
+    refFids.RemoveAllMarkups()
+    refFids.GetDisplayNode().SetSelectedColor(1, 1, 0)
+
+    fromNormCoordinates = numpy.random.rand(numPoints, 3)
+    noise = numpy.random.normal(0.0, Sigma, numPoints * 3)
+
+    for i in range(numPoints):
+      x = (fromNormCoordinates[i, 0] - 0.5) * Scale
+      y = (fromNormCoordinates[i, 1] - 0.5) * Scale
+      z = (fromNormCoordinates[i, 2] - 0.5) * Scale
+      
+      rasFids.AddFiducial(x, y, z)
+      xx = x + noise[i * 3]
+      yy = y + noise[i * 3 + 1]
+      zz = z + noise[i * 3 + 2]
+      refFids.AddFiducial(xx, yy, zz)
+
+
+  def fiducialsToPoints(self, fiducials, points):
+    n = fiducials.GetNumberOfFiducials()
+    
+    for i in range(n):
+      p = [0,0,0]
+      fiducials.GetNthFiducialPosition(i, p)
+      points.InsertNextPoint(p[0], p[1], p[2])
+      
 class michaelTest(ScriptedLoadableModuleTest):
   """
   This is the test case for your scripted module.
@@ -253,96 +325,98 @@ class michaelTest(ScriptedLoadableModuleTest):
     self.setUp()
     self.test_michael1()
 
-  def test_michael1(self):   
-    # Create transform node for registration
+  def generatePoints(self, numPoints, Scale, Sigma):
 
-    alphaToBeta = slicer.vtkMRMLLinearTransformNode()
-    alphaToBeta.SetName('ReferenceToRas')
-    slicer.mrmlScene.AddNode(alphaToBeta)
+    rasFids = slicer.util.getNode('RasPoints')
 
-    N = 10         
-    Scale = 100.0  
-    Sigma = 2.0    
+    if rasFids == None:
+      rasFids = slicer.vtkMRMLMarkupsFiducialNode()
+      rasFids.SetName('RasPoints')
+      slicer.mrmlScene.AddNode(rasFids)
 
-    fromNormCoordinates = numpy.random.rand(N, 3) # An array of random numbers
-    noise = numpy.random.normal(0.0, Sigma, N*3)
+    rasFids.RemoveAllMarkups()
+    refFids = slicer.util.getNode('ReferencePoints')
 
-    # Create 2 fiducial lists
+    if refFids == None:
+      refFids = slicer.vtkMRMLMarkupsFiducialNode()
+      refFids.SetName('ReferencePoints')
+      slicer.mrmlScene.AddNode(refFids)
+      
+    refFids.RemoveAllMarkups()
+    refFids.GetDisplayNode().SetSelectedColor(1, 1, 0)
 
-    alphaFids = slicer.vtkMRMLMarkupsFiducialNode()
-    alphaFids.SetName('ReferencePoints')
-    slicer.mrmlScene.AddNode(alphaFids)
+    fromNormCoordinates = numpy.random.rand(numPoints, 3)
+    noise = numpy.random.normal(0.0, Sigma, numPoints * 3)
 
-    betaFids = slicer.vtkMRMLMarkupsFiducialNode()
-    betaFids.SetName('RasPoints')
-    slicer.mrmlScene.AddNode(betaFids)
-    betaFids.GetDisplayNode().SetSelectedColor(1,1,0)
-
-
-    alphaPoints = vtk.vtkPoints()
-    betaPoints = vtk.vtkPoints()
-
-    for i in range(N):
+    for i in range(numPoints):
       x = (fromNormCoordinates[i, 0] - 0.5) * Scale
       y = (fromNormCoordinates[i, 1] - 0.5) * Scale
       z = (fromNormCoordinates[i, 2] - 0.5) * Scale
-      numFids = alphaFids.AddFiducial(x, y, z)
-      numPoints = alphaPoints.InsertNextPoint(x, y, z)
-      xx = x+noise[i*3]
-      yy = y+noise[i*3+1]
-      zz = z+noise[i*3+2]
-      numFids = betaFids.AddFiducial(xx, yy, zz)
-      numPoints = betaPoints.InsertNextPoint(xx, yy, zz)
+      
+      rasFids.AddFiducial(x, y, z)
+      xx = x + noise[i * 3]
+      yy = y + noise[i * 3 + 1]
+      zz = z + noise[i * 3 + 2]
+      refFids.AddFiducial(xx, yy, zz)
 
-    # Create landmark transform object that computes registration
 
-    landmarkTransform = vtk.vtkLandmarkTransform()
-    landmarkTransform.SetSourceLandmarks(alphaPoints)
-    landmarkTransform.SetTargetLandmarks(betaPoints)
-    landmarkTransform.SetModeToRigidBody()
-    landmarkTransform.Update()
+  def fiducialsToPoints(self, fiducials, points):
+    n = fiducials.GetNumberOfFiducials()
+    
+    for i in range(n):
+      p = [0,0,0]
+      fiducials.GetNthFiducialPosition(i, p)
+      points.InsertNextPoint(p[0], p[1], p[2])
 
-    alphaToBetaMatrix = vtk.vtkMatrix4x4()
-    landmarkTransform.GetMatrix( alphaToBetaMatrix )
-
-    det = alphaToBetaMatrix.Determinant()
-    if det < 1e-8:
-      print 'Unstable registration. Check input for collinear points.'
-
-    alphaToBeta.SetMatrixTransformToParent(alphaToBetaMatrix)
-
-    # Compute average point distance after registration
-
-    average = 0.0
-    numbersSoFar = 0
-
-    for i in range(N):
-      numbersSoFar = numbersSoFar + 1
-      a = alphaPoints.GetPoint(i)
-      point1Alpha = numpy.array(a)
-      point1Alpha = numpy.append(point1Alpha, 1)
-      pointA_Beta = alphaToBetaMatrix.MultiplyFloatPoint(point1Alpha)
-      b = betaPoints.GetPoint(i)
-      point2Beta = numpy.array(b)
-      point2Beta = numpy.append(point2Beta, 1)
-      distance = numpy.linalg.norm(pointA_Beta - point2Beta)
-      average = average + (distance - average) / numbersSoFar
-
-    print "Average distance after registration: " + str(average)
+  def test_michael1(self):
+    
+    referenceToRas = slicer.vtkMRMLLinearTransformNode()
+    referenceToRas.SetName('ReferenceToRas')
+    slicer.mrmlScene.AddNode(referenceToRas)
 
     createModelsLogic = slicer.modules.createmodels.logic()
-    referenceModelNode = createModelsLogic.CreateCoordinate(20,2)
-    referenceModelNode.SetName('ReferenceCoordinateModel')
-    rasModelNode = createModelsLogic.CreateCoordinate(20,2)
-    rasModelNode.SetName('RasCoordinateModel')
+    rasModelNode = createModelsLogic.CreateCoordinate(20, 2)
+    rasModelNode.SetName('RasModel')
+    refModelNode = createModelsLogic.CreateCoordinate(20, 2)
+    refModelNode.SetName('RefModel')
+    refModelNode.SetAndObserveTransformNodeID(referenceToRas.GetID())
 
-    referenceModelNode.GetDisplayNode().SetColor(0,0,1)
-    rasModelNode.GetDisplayNode().SetColor(1,0,0)
 
-    rasModelNode.SetAndObserveTransformNodeID(alphaToBeta.GetID())
-    
-    # Compute TRE between Reference and Ras coordinate systems
-    targetPoint_Reference = numpy.array([0,0,0,1])
-    targetPoint_Ras = alphaToBetaMatrix.MultiplyFloatPoint(targetPoint_Reference)
-    d = numpy.linalg.norm(targetPoint_Reference- targetPoint_Ras)
-    print "TRE: " + str(d)
+    rasModelNode.GetDisplayNode().SetColor(1, 0, 0)
+    refModelNode.GetDisplayNode().SetColor(0, 1, 0)
+
+    rasPoints = vtk.vtkPoints()
+    refPoints = vtk.vtkPoints()
+
+
+    logic = michaelLogic()
+
+    for i in range(10):
+      
+      numPoints = 10 + i * 5
+      sigma = 3.0
+      scale = 100.0
+
+      self.generatePoints(numPoints, scale, sigma)
+      rasFids = slicer.util.getNode('RasPoints')
+      refFids = slicer.util.getNode('ReferencePoints')
+      self.fiducialsToPoints(rasFids, rasPoints)
+      self.fiducialsToPoints(refFids, refPoints)
+      referenceToRasMatrix = vtk.vtkMatrix4x4()
+      logic.rigidRegistration(refPoints, rasPoints, referenceToRasMatrix)
+      det = referenceToRasMatrix.Determinant()
+
+      if det < 1e-8:
+        logging.error('All points in one line')
+        continue
+
+      referenceToRas.SetMatrixTransformToParent(referenceToRasMatrix)
+      avgDistance = logic.averageTransformedDistance(refPoints, rasPoints, referenceToRasMatrix)
+      print "Average distance: " + str(avgDistance)
+
+      targetPoint_Ras = numpy.array([0,0,0,1])
+      targetPoint_Reference = referenceToRasMatrix.MultiplyFloatPoint(targetPoint_Ras)
+      targetPoint_Reference = numpy.array(targetPoint_Reference)
+      tre = numpy.linalg.norm(targetPoint_Ras - targetPoint_Reference)
+      print "TRE: " + str(tre)
+      print ""
