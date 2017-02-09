@@ -264,48 +264,6 @@ class michaelLogic(ScriptedLoadableModuleLogic):
 
     return True
 
-  def generatePoints(self, numPoints, Scale, Sigma):
-
-    rasFids = slicer.util.getNode('RasPoints')
-
-    if rasFids == None:
-      rasFids = slicer.vtkMRMLMarkupsFiducialNode()
-      rasFids.SetName('RasPoints')
-      slicer.mrmlScene.AddNode(rasFids)
-
-    rasFids.RemoveAllMarkups()
-    refFids = slicer.util.getNode('ReferencePoints')
-
-    if refFids == None:
-      refFids = slicer.vtkMRMLMarkupsFiducialNode()
-      refFids.SetName('ReferencePoints')
-      slicer.mrmlScene.AddNode(refFids)
-      
-    refFids.RemoveAllMarkups()
-    refFids.GetDisplayNode().SetSelectedColor(1, 1, 0)
-
-    fromNormCoordinates = numpy.random.rand(numPoints, 3)
-    noise = numpy.random.normal(0.0, Sigma, numPoints * 3)
-
-    for i in range(numPoints):
-      x = (fromNormCoordinates[i, 0] - 0.5) * Scale
-      y = (fromNormCoordinates[i, 1] - 0.5) * Scale
-      z = (fromNormCoordinates[i, 2] - 0.5) * Scale
-      
-      rasFids.AddFiducial(x, y, z)
-      xx = x + noise[i * 3]
-      yy = y + noise[i * 3 + 1]
-      zz = z + noise[i * 3 + 2]
-      refFids.AddFiducial(xx, yy, zz)
-
-
-  def fiducialsToPoints(self, fiducials, points):
-    n = fiducials.GetNumberOfFiducials()
-    
-    for i in range(n):
-      p = [0,0,0]
-      fiducials.GetNthFiducialPosition(i, p)
-      points.InsertNextPoint(p[0], p[1], p[2])
       
 class michaelTest(ScriptedLoadableModuleTest):
   """
@@ -325,6 +283,7 @@ class michaelTest(ScriptedLoadableModuleTest):
     self.setUp()
     self.test_michael1()
 
+
   def generatePoints(self, numPoints, Scale, Sigma):
 
     rasFids = slicer.util.getNode('RasPoints')
@@ -360,6 +319,8 @@ class michaelTest(ScriptedLoadableModuleTest):
       refFids.AddFiducial(xx, yy, zz)
 
 
+
+
   def fiducialsToPoints(self, fiducials, points):
     n = fiducials.GetNumberOfFiducials()
     
@@ -367,6 +328,8 @@ class michaelTest(ScriptedLoadableModuleTest):
       p = [0,0,0]
       fiducials.GetNthFiducialPosition(i, p)
       points.InsertNextPoint(p[0], p[1], p[2])
+
+
 
   def test_michael1(self):
     
@@ -390,6 +353,9 @@ class michaelTest(ScriptedLoadableModuleTest):
 
 
     logic = michaelLogic()
+    TREs = []
+    nVal = [10,15,20,25,30,35,40,45,50,55]
+    numPoints = range(10, 60, 5)
 
     for i in range(10):
       
@@ -405,7 +371,7 @@ class michaelTest(ScriptedLoadableModuleTest):
       referenceToRasMatrix = vtk.vtkMatrix4x4()
       logic.rigidRegistration(refPoints, rasPoints, referenceToRasMatrix)
       det = referenceToRasMatrix.Determinant()
-
+      
       if det < 1e-8:
         logging.error('All points in one line')
         continue
@@ -418,5 +384,44 @@ class michaelTest(ScriptedLoadableModuleTest):
       targetPoint_Reference = referenceToRasMatrix.MultiplyFloatPoint(targetPoint_Ras)
       targetPoint_Reference = numpy.array(targetPoint_Reference)
       tre = numpy.linalg.norm(targetPoint_Ras - targetPoint_Reference)
+      TREs.append(tre)
       print "TRE: " + str(tre)
       print ""
+      
+    numPoints = range(10, 70, 5)
+    # Homework February 9th
+    # Using chart view, plot TRE as a function of num of points
+
+    lns = slicer.mrmlScene.GetNodesByClass('vtkMRMLLayoutNode')
+    lns.InitTraversal()
+    ln = lns.GetNextItemAsObject()
+    # Layout 24 contains chart view to inititate construction of widget
+    ln.SetViewArrangement(24)
+
+    # Get chart view node
+    cvns = slicer.mrmlScene.GetNodesByClass('vtkMRMLChartViewNode')
+    cvns.InitTraversal()
+    cvn = cvns.GetNextItemAsObject()
+
+    # Create TRE Array
+    TREpts = slicer.mrmlScene.AddNode(slicer.vtkMRMLDoubleArrayNode())
+    TREarray = TREpts.GetArray()
+    TREarray.SetNumberOfTuples(10)
+
+    for i in range(10):
+      TREarray.SetComponent(i, 0, numPoints[i])
+      TREarray.SetComponent(i, 1, TREs[i])
+      TREarray.SetComponent(i, 2, 0)
+      
+    # Create a Chart Node.
+    cn = slicer.mrmlScene.AddNode(slicer.vtkMRMLChartNode())
+
+    # Add the Array Nodes to the Chart. The first argument is a string used for the legend and to refer to the Array when setting properties.
+    cn.AddArray('TRE', TREpts.GetID())
+    # Set a few properties on the Chart. The first argument is a string identifying which Array to assign the property. 
+    # 'default' is used to assign a property to the Chart itself (as opposed to an Array Node).
+    cn.SetProperty('default', 'title', 'TRE as a function of # of pts')
+    cn.SetProperty('default', 'xAxisLabel', '# of pts')
+    cn.SetProperty('default', 'yAxisLabel', 'TRE Value')
+
+    cvn.SetChartNodeID(cn.GetID())
