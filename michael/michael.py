@@ -103,6 +103,22 @@ class michaelWidget(ScriptedLoadableModuleWidget):
     parametersFormLayout.addRow("Enable Screenshots", self.enableScreenshotsFlagCheckBox)
 
     #
+    # emSelector
+    #
+    self.emSelector = slicer.qMRMLNodeComboBox()
+    self.emSelector.nodeTypes = ["vtkMRMLLinearTransformNode"]
+    self.emSelector.setMRMLScene(slicer.mrmlScene)
+    parametersFormLayour.addRow("Em Transform: ", self.emSelector)
+
+    #
+    # opSelector
+    #
+    self.opSelector = slicer.qMRMLNodeComboBox()
+    self.opSelector.nodeTypes = ["vtkMRMLLinearTransformNode"]
+    self.opSelector.setMRMLScene(slicer.mrmlScene)
+    parametersFormLayour.addRow("Op Transform: ", self.opSelector)
+
+    #
     # Apply Button
     #
     self.applyButton = qt.QPushButton("Apply")
@@ -112,8 +128,8 @@ class michaelWidget(ScriptedLoadableModuleWidget):
 
     # connections
     self.applyButton.connect('clicked(bool)', self.onApplyButton)
-    self.inputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
-    self.outputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
+    self.emSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
+    self.opSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
 
     # Add vertical spacer
     self.layout.addStretch(1)
@@ -132,6 +148,56 @@ class michaelWidget(ScriptedLoadableModuleWidget):
     enableScreenshotsFlag = self.enableScreenshotsFlagCheckBox.checked
     imageThreshold = self.imageThresholdSliderWidget.value
     logic.run(self.inputSelector.currentNode(), self.outputSelector.currentNode(), imageThreshold, enableScreenshotsFlag)
+
+    # Apply BUtton
+
+    self.applyButton = qt.QPushButton("Apply")
+    self.applyButton.toolTip = "Run the algorithm"
+    self.applyButton.enabled = False
+    parametersFormLayout.addRow(self.applyButton)
+
+    #connections
+    self.applyButton.connect('clicked(bool)', self.onApplyButton)
+
+
+
+  def onApplyButton(self):
+      emTipTransform = self.emSelector.currentNode()
+      opTipTransform = self.opSelector.currentNode()
+      if emTipTransform == None:
+          return
+      onTipTransform = self.opticalSelector.currentNode()
+      if opTipTransform == None:
+          return
+
+      emTipTransform.AddObserver( slicer.vtkMRMLTransformNode.TransformModifiedEvent, self.onTransformModification)
+      opTipTransform.AddObserver( slicer.vtkMRMLTransformNode.TransformModifiedEvent, self.onTransformModification)
+
+
+  def onTransformModified(self, caller, event):
+      print 'transforms detected'
+      emTipTransform = self.emSelector.currentNode()
+      opTipTransform = self.opSelector.currentNode()
+      if emTipTransform == None:
+          return
+      if opTipTransform == None:
+          return
+
+      emTip_emTip = [0,0,0,1]
+      opTip_opTip = [0,0,0,1]
+
+      emTipToRasMatrix = vtk.vtkMatrix4x4()
+      emTipTransform.GetMatrixTransformToWorld(emTipToRasMatrix)
+      emTip_Ras = numpy.array(emTipToRasMatrix.MultiplyFloatPoint(emTip_emTip))
+
+      opTipToRasMatrix = vtk.vtkMatrix4x4()
+      opTipTransform.GetMatrixTransformToWorld(opTipToRasMatrix)
+      opTip_Ras = numpy.array(opTipToRasMatrix.MultiplyFloatPoint(opTip_opTip))
+
+      distance = numpy.linalg.norm(emTip_Ras - opTip_Ras)
+      print "distance between tips: " + str(distance)
+      return
+
 
 #
 # michaelLogic
@@ -425,3 +491,6 @@ class michaelTest(ScriptedLoadableModuleTest):
     cn.SetProperty('default', 'yAxisLabel', 'TRE Value')
 
     cvn.SetChartNodeID(cn.GetID())
+
+
+
