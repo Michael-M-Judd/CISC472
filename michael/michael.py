@@ -111,7 +111,7 @@ class michaelWidget(ScriptedLoadableModuleWidget):
     self.emSelector = slicer.qMRMLNodeComboBox()
     self.emSelector.nodeTypes = ["vtkMRMLLinearTransformNode"]
     self.emSelector.setMRMLScene(slicer.mrmlScene)
-    parametersFormLayour.addRow("Em Transform: ", self.emSelector)
+    parametersFormLayout.addRow("Em Transform: ", self.emSelector)
 
     #
     # opSelector
@@ -119,7 +119,7 @@ class michaelWidget(ScriptedLoadableModuleWidget):
     self.opSelector = slicer.qMRMLNodeComboBox()
     self.opSelector.nodeTypes = ["vtkMRMLLinearTransformNode"]
     self.opSelector.setMRMLScene(slicer.mrmlScene)
-    parametersFormLayour.addRow("Op Transform: ", self.opSelector)
+    parametersFormLayout.addRow("Op Transform: ", self.opSelector)
 
     #
     # Apply Button
@@ -160,11 +160,11 @@ class michaelWidget(ScriptedLoadableModuleWidget):
       opTipTransform = self.opSelector.currentNode()
       if emTipTransform == None:
           return
-      onTipTransform = self.opticalSelector.currentNode()
+      onTipTransform = self.opSelector.currentNode()
       if opTipTransform == None:
           return
-      emTipTransform.AddObserver( slicer.vtkMRMLTransformNode.TransformModifiedEvent, self.onTransformModification)
-      opTipTransform.AddObserver( slicer.vtkMRMLTransformNode.TransformModifiedEvent, self.onTransformModification)
+      emTipTransform.AddObserver( slicer.vtkMRMLTransformNode.TransformModifiedEvent, self.onTransformModified)
+      opTipTransform.AddObserver( slicer.vtkMRMLTransformNode.TransformModifiedEvent, self.onTransformModified)
 
 
   def onTransformModified(self, caller, event):
