@@ -56,6 +56,7 @@ class michaelWidget(ScriptedLoadableModuleWidget):
     #
     # input volume selector
     #
+    '''
     self.inputSelector = slicer.qMRMLNodeComboBox()
     self.inputSelector.nodeTypes = ["vtkMRMLScalarVolumeNode"]
     self.inputSelector.selectNodeUponCreation = True
@@ -67,10 +68,11 @@ class michaelWidget(ScriptedLoadableModuleWidget):
     self.inputSelector.setMRMLScene( slicer.mrmlScene )
     self.inputSelector.setToolTip( "Pick the input to the algorithm." )
     parametersFormLayout.addRow("Input Volume: ", self.inputSelector)
-
+    '''
     #
     # output volume selector
     #
+    '''
     self.outputSelector = slicer.qMRMLNodeComboBox()
     self.outputSelector.nodeTypes = ["vtkMRMLScalarVolumeNode"]
     self.outputSelector.selectNodeUponCreation = True
@@ -82,10 +84,11 @@ class michaelWidget(ScriptedLoadableModuleWidget):
     self.outputSelector.setMRMLScene( slicer.mrmlScene )
     self.outputSelector.setToolTip( "Pick the output to the algorithm." )
     parametersFormLayout.addRow("Output Volume: ", self.outputSelector)
-
+    '''
     #
     # threshold value
     #
+    '''
     self.imageThresholdSliderWidget = ctk.ctkSliderWidget()
     self.imageThresholdSliderWidget.singleStep = 0.1
     self.imageThresholdSliderWidget.minimum = -100
@@ -93,7 +96,7 @@ class michaelWidget(ScriptedLoadableModuleWidget):
     self.imageThresholdSliderWidget.value = 0.5
     self.imageThresholdSliderWidget.setToolTip("Set threshold value for computing the output image. Voxels that have intensities lower than this value will set to zero.")
     parametersFormLayout.addRow("Image threshold", self.imageThresholdSliderWidget)
-
+    '''
     #
     # check box to trigger taking screen shots for later use in tutorials
     #
@@ -141,27 +144,18 @@ class michaelWidget(ScriptedLoadableModuleWidget):
     pass
 
   def onSelect(self):
-    self.applyButton.enabled = self.inputSelector.currentNode() and self.outputSelector.currentNode()
-
+    self.applyButton.enabled = self.emSelector.currentNode() and self.opSelector.currentNode()
+  '''
   def onApplyButton(self):
+
     logic = michaelLogic()
     enableScreenshotsFlag = self.enableScreenshotsFlagCheckBox.checked
     imageThreshold = self.imageThresholdSliderWidget.value
     logic.run(self.inputSelector.currentNode(), self.outputSelector.currentNode(), imageThreshold, enableScreenshotsFlag)
-
-    # Apply BUtton
-
-    self.applyButton = qt.QPushButton("Apply")
-    self.applyButton.toolTip = "Run the algorithm"
-    self.applyButton.enabled = False
-    parametersFormLayout.addRow(self.applyButton)
-
-    #connections
-    self.applyButton.connect('clicked(bool)', self.onApplyButton)
-
-
+  '''
 
   def onApplyButton(self):
+      logic = michaelLogic()
       emTipTransform = self.emSelector.currentNode()
       opTipTransform = self.opSelector.currentNode()
       if emTipTransform == None:
@@ -169,7 +163,6 @@ class michaelWidget(ScriptedLoadableModuleWidget):
       onTipTransform = self.opticalSelector.currentNode()
       if opTipTransform == None:
           return
-
       emTipTransform.AddObserver( slicer.vtkMRMLTransformNode.TransformModifiedEvent, self.onTransformModification)
       opTipTransform.AddObserver( slicer.vtkMRMLTransformNode.TransformModifiedEvent, self.onTransformModification)
 
@@ -177,9 +170,9 @@ class michaelWidget(ScriptedLoadableModuleWidget):
   def onTransformModified(self, caller, event):
       print 'transforms detected'
       emTipTransform = self.emSelector.currentNode()
-      opTipTransform = self.opSelector.currentNode()
       if emTipTransform == None:
           return
+      opTipTransform = self.opSelector.currentNode()
       if opTipTransform == None:
           return
 
